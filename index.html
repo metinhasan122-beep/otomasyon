@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Otomasyon Takip</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Otomasyon">
+<meta name="theme-color" content="#eef1f6">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #eef1f6; --card: #ffffff; --ink: #101828; --muted: #667085; --line: #f0f2f5; --line2: #e4e7ec;
+    --blue: #2563eb; --blue-soft: #d0dcf5; --green: #16a34a; --red: #b42318; --amber: #b45309; --violet: #7c3aed;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Manrope', -apple-system, system-ui, sans-serif; font-size: 15px; }
+  button { font-family: inherit; }
+  .app { display: flex; flex-direction: column; height: 100%; max-width: 520px; margin: 0 auto; }
+  header { padding: calc(14px + env(safe-area-inset-top)) 16px 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  header h1 { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.02em; }
+  .fresh { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; background: var(--green); flex-shrink: 0; }
+  .dot.stale { background: #f59e0b; } .dot.dead { background: var(--red); }
+  main { flex: 1; min-height: 0; overflow-y: auto; padding: 0 16px 16px; -webkit-overflow-scrolling: touch; }
+  .stack { display: flex; flex-direction: column; gap: 12px; }
+  .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .card { background: var(--card); border-radius: 20px; padding: 14px; }
+  .kicker { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: 0.02em; }
+  .big { font-size: 32px; font-weight: 800; line-height: 1.1; }
+  .sub { font-size: 12px; color: var(--muted); }
+  .state { color: #fff; border-radius: 20px; padding: 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .state.running { background: var(--green); } .state.break { background: var(--amber); } .state.stopped { background: #475467; }
+  .state .title { font-size: 26px; font-weight: 800; }
+  .state .meta { font-size: 13px; opacity: 0.92; }
+  .pill { border: none; border-radius: 999px; padding: 0 18px; height: 44px; font-size: 14px; font-weight: 800; cursor: pointer; flex-shrink: 0; }
+  .pill.white { background: #fff; color: var(--red); } .pill.white.go { color: var(--green); }
+  .pill.dark { background: var(--ink); color: #fff; } .pill.blue { background: var(--blue); color: #fff; }
+  .pill:disabled { opacity: 0.6; }
+  .banner { border-radius: 14px; padding: 10px 12px; font-size: 13px; font-weight: 600; }
+  .banner.warn { background: #fef3c7; color: #78350f; } .banner.err { background: #fee2e2; color: #7f1d1d; }
+  .chart { display: flex; align-items: flex-end; justify-content: center; gap: 6px; height: 112px; }
+  .bar { flex: 1; max-width: 44px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 100%; min-width: 0; }
+  .bar b { font-size: 12px; font-weight: 800; color: #344054; }
+  .bar i { display: block; width: 100%; border-radius: 6px; background: var(--blue-soft); }
+  .bar.now b { color: var(--blue); } .bar.now i { background: var(--blue); }
+  .hours { display: flex; justify-content: center; gap: 6px; margin-top: 6px; } .hours span { flex: 1; max-width: 44px; text-align: center; font-size: 11px; color: var(--muted); }
+  .row { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
+  .row .t { color: var(--muted); flex-shrink: 0; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { border: 1px solid #d0d5dd; background: #fff; color: #344054; border-radius: 999px; padding: 0 14px; height: 36px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .chip.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .list { background: var(--card); border-radius: 20px; overflow: hidden; }
+  .item { display: flex; gap: 12px; padding: 11px 14px; border-bottom: 1px solid var(--line); }
+  .item:last-child { border-bottom: none; }
+  .item .d { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+  .item .main { flex: 1; min-width: 0; }
+  .item .top { display: flex; justify-content: space-between; gap: 8px; }
+  .item .ttl { font-size: 14px; font-weight: 700; }
+  .item .det { font-size: 12px; color: var(--muted); word-break: break-word; }
+  .empty { padding: 24px; text-align: center; font-size: 13px; color: var(--muted); }
+  .progress { height: 6px; background: var(--line2); border-radius: 999px; overflow: hidden; margin-top: 6px; }
+  .progress i { display: block; height: 100%; width: 60%; background: #1d4ed8; animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 0.55 } 50% { opacity: 1 } }
+  .sec-title { font-size: 12px; font-weight: 700; color: var(--muted); padding: 10px 6px 6px; }
+  .set { background: var(--card); border-radius: 18px; overflow: hidden; }
+  .srow { display: flex; align-items: center; gap: 12px; padding: 10px 14px; min-height: 60px; border-bottom: 1px solid var(--line); }
+  .srow:last-child { border-bottom: none; }
+  .srow.changed { background: #eef4ff; }
+  .srow.stack { flex-direction: column; align-items: stretch; gap: 8px; padding-bottom: 12px; }
+  .srow .lbl { flex: 1; min-width: 0; }
+  .srow .lbl div:first-child { font-size: 14px; font-weight: 600; line-height: 20px; }
+  .srow .lbl .h { font-size: 12px; color: var(--muted); line-height: 16px; }
+  .switch { position: relative; width: 50px; height: 30px; border-radius: 999px; border: none; padding: 0; background: #d0d5dd; cursor: pointer; flex-shrink: 0; }
+  .switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(16,24,40,0.3); transition: left 0.15s; }
+  .switch[aria-checked="true"] { background: var(--green); } .switch[aria-checked="true"]::after { left: 23px; }
+  .num { width: 72px; height: 36px; border: 1px solid #d0d5dd; border-radius: 10px; text-align: center; font-family: inherit; font-size: 15px; background: #fff; color: var(--ink); }
+  .num.time { width: 104px; }
+  .nums { display: flex; gap: 6px; }
+  .nums .num { width: 54px; }
+  .seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; background: var(--bg); border-radius: 10px; padding: 2px; }
+  .seg button { border: none; border-radius: 8px; height: 36px; font-size: 13px; font-weight: 700; background: transparent; color: var(--muted); cursor: pointer; }
+  .seg button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(16,24,40,0.15); }
+  .savebar { position: sticky; bottom: 0; margin-top: 12px; display: flex; align-items: center; gap: 10px; background: var(--ink); color: #fff; border-radius: 16px; padding: 10px 10px 10px 16px; box-shadow: 0 6px 18px rgba(16,24,40,0.25); }
+  .savebar span { flex: 1; font-weight: 700; font-size: 14px; }
+  .savebar button { height: 40px; border-radius: 10px; padding: 0 14px; font-size: 14px; font-weight: 800; cursor: pointer; }
+  .savebar .ghost { border: 1px solid #475467; background: transparent; color: #fff; }
+  .savebar .primary { border: none; background: var(--blue); color: #fff; }
+  .note { font-size: 12px; color: var(--muted); text-align: center; padding: 10px 8px 0; }
+  nav.tabs { background: #fff; border-top: 1px solid var(--line2); display: flex; justify-content: space-around; padding: 6px 0 calc(8px + env(safe-area-inset-bottom)); }
+  nav.tabs button { border: none; background: transparent; min-width: 72px; min-height: 48px; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; font-weight: 600; color: var(--muted); cursor: pointer; }
+  nav.tabs button[aria-current="page"] { color: var(--blue); font-weight: 800; }
+  .toast { position: fixed; left: 50%; transform: translateX(-50%); top: calc(58px + env(safe-area-inset-top)); background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 12px; font-size: 14px; font-weight: 700; max-width: 90%; text-align: center; box-shadow: 0 6px 18px rgba(16,24,40,0.25); z-index: 10; }
+  .toast.ok { background: #14532d; } .toast.err { background: #7f1d1d; }
+  .pair { padding: calc(40px + env(safe-area-inset-top)) 20px 20px; max-width: 520px; margin: 0 auto; }
+  .pair h1 { font-size: 28px; margin: 0 0 8px; }
+  .pair textarea { width: 100%; min-height: 110px; border-radius: 14px; border: 1px solid #d0d5dd; padding: 12px; font-family: ui-monospace, monospace; font-size: 13px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- Eşleştirme ekranı -->
+<div id="pairView" class="pair hidden">
+  <h1>Otomasyon Takip</h1>
+  <p class="sub" style="font-size:14px">Bilgisayardaki eklentinin Ayarlar → <b>Telefon Uygulaması</b> bölümündeki QR kodu iPhone kamerasıyla okut. Ya da oradaki eşleştirme metnini kopyalayıp buraya yapıştır.</p>
+  <label for="pairInput" class="kicker">EŞLEŞTİRME METNİ</label>
+  <textarea id="pairInput" autocapitalize="off" autocomplete="off" spellcheck="false"></textarea>
+  <div id="pairError" class="banner err hidden" style="margin-top:10px"></div>
+  <button id="pairBtn" class="pill blue" style="width:100%; margin-top:12px; border-radius:14px; height:48px">Bağlan</button>
+</div>
+
+<!-- Uygulama -->
+<div id="appView" class="app hidden">
+  <header>
+    <h1 id="title">Özet</h1>
+    <span class="fresh"><span id="freshDot" class="dot"></span><span id="freshText">bağlanıyor…</span></span>
+  </header>
+  <main id="main"></main>
+  <nav class="tabs" aria-label="Sekmeler">
+    <button data-tab="ozet" aria-current="page"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Özet</button>
+    <button data-tab="akis"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>Akış</button>
+    <button data-tab="rem"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>Reminder</button>
+    <button data-tab="set"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M1 14h6"/><path d="M9 8h6"/><path d="M17 16h6"/></svg>Ayarlar</button>
+  </nav>
+</div>
+
+<div id="toast" class="toast hidden" role="status"></div>
+
+<script>
+(function () {
+  'use strict';
+  // ------------------------------------------------------------------
+  // Durum
+  // ------------------------------------------------------------------
+  const KEY = 'otomasyonTakipBaglanti';
+  let conn = null;            // { d: firebaseUrl, c: gizliKod }
+  let live = null;            // eklentiden gelen özet
+  let hb = 0;                 // son nabız zamanı
+  let tab = 'ozet';
+  let filter = 'all';
+  let draft = null;           // ayarların düzenlenen kopyası
+  let pending = {};           // gönderilen komutlar: { type: true }
+  let esLive = null, esHb = null;
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const hm = (ts) => ts ? new Date(ts).toLocaleTimeString('tr-TR', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' }) : '';
+
+  function toast(msg, kind) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.className = 'toast ' + (kind || '');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => t.classList.add('hidden'), 3200);
+  }
+
+  // ------------------------------------------------------------------
+  // Eşleştirme
+  // ------------------------------------------------------------------
+  function decodePair(text) {
+    try {
+      const raw = String(text || '').trim().replace(/^.*#k=/, '');
+      const b64 = raw.replace(/-/g, '+').replace(/_/g, '/');
+      const json = decodeURIComponent(escape(atob(b64 + '==='.slice((b64.length + 3) % 4))));
+      const o = JSON.parse(json);
+      if (/^https:\/\/[a-z0-9.-]+\.(firebaseio\.com|firebasedatabase\.app)$/i.test(o.d) && /^[A-Za-z0-9_-]{24,64}$/.test(o.c)) return { d: o.d, c: o.c };
+    } catch (e) { /* geçersiz */ }
+    return null;
+  }
+
+  function loadConn() {
+    const fromHash = location.hash.startsWith('#k=') ? decodePair(location.hash) : null;
+    if (fromHash) {
+      // Adres çubuğundaki #k= bilerek bırakılıyor: iPhone'da "Ana Ekrana Ekle"
+      // yapılınca ana ekran simgesi Safari'den ayrı bir depolama kullanır;
+      // eşleştirme bu sayede simgeyle birlikte taşınır.
+      try { localStorage.setItem(KEY, JSON.stringify(fromHash)); } catch (e) {}
+      return fromHash;
+    }
+    try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && s.d && s.c) return s; } catch (e) {}
+    return null;
+  }
+
+  $('pairBtn').addEventListener('click', () => {
+    const c = decodePair($('pairInput').value);
+    if (!c) {
+      $('pairError').textContent = 'Eşleştirme metni geçersiz. Eklentinin Ayarlar sayfasından tekrar kopyala.';
+      $('pairError').classList.remove('hidden');
+      return;
+    }
+    try { localStorage.setItem(KEY, JSON.stringify(c)); } catch (e) {}
+    // Ana ekrana eklenirse eşleştirme de gitsin
+    const raw = $('pairInput').value.trim().replace(/^.*#k=/, '');
+    history.replaceState(null, '', location.pathname + location.search + '#k=' + raw);
+    start(c);
+  });
+
+  function unpair() {
+    if (!confirm('Bu telefonun eşleştirmesi kaldırılsın mı?')) return;
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    if (esLive) esLive.close();
+    if (esHb) esHb.close();
+    location.replace(location.pathname + location.search);
+  }
+
+  // ------------------------------------------------------------------
+  // Firebase (REST + canlı akış)
+  // ------------------------------------------------------------------
+  const base = () => `${conn.d}/${conn.c}`;
+
+  function applyStream(target, path, data, isPatch) {
+    if (path === '/') {
+      if (isPatch && target && typeof target === 'object') return Object.assign({}, target, data);
+      return data;
+    }
+    const parts = path.replace(/^\//, '').split('/');
+    const root = target && typeof target === 'object' ? JSON.parse(JSON.stringify(target)) : {};
+    let cur = root;
+    for (let i = 0; i < parts.length - 1; i++) {
+      if (!cur[parts[i]] || typeof cur[parts[i]] !== 'object') cur[parts[i]] = {};
+      cur = cur[parts[i]];
+    }
+    const last = parts[parts.length - 1];
+    if (isPatch && cur[last] && typeof cur[last] === 'object') cur[last] = Object.assign({}, cur[last], data);
+    else if (data === null) delete cur[last];
+    else cur[last] = data;
+    return root;
+  }
+
+  function openStreams() {
+    if (esLive) esLive.close();
+    if (esHb) esHb.close();
+    esLive = new EventSource(`${base()}/live.json`);
+    const onLive = (isPatch) => (e) => {
+      let m; try { m = JSON.parse(e.data); } catch (err) { return; }
+      if (!m) return;
+      live = applyStream(live, m.path || '/', m.data, isPatch);
+      if (live && live.settings && (!draft || Object.keys(changedSettings()).length === 0)) draft = Object.assign({}, live.settings);
+      render();
+    };
+    esLive.addEventListener('put', onLive(false));
+    esLive.addEventListener('patch', onLive(true));
+    esLive.addEventListener('cancel', () => toast('Firebase erişimi reddetti. Kuralları kontrol edin.', 'err'));
+
+    esHb = new EventSource(`${base()}/hb.json`);
+    esHb.addEventListener('put', (e) => {
+      try { const m = JSON.parse(e.data); if (m && typeof m.data === 'number') { hb = m.data; renderFresh(); } } catch (err) {}
+    });
+  }
+
+  async function sendCommand(type, extra) {
+    if (pending[type]) return;
+    pending[type] = true;
+    render();
+    try {
+      const res = await fetch(`${base()}/commands.json`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.assign({ type, at: { '.sv': 'timestamp' } }, extra || {}))
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const { name } = await res.json();
+      toast('Komut gönderildi, bilgisayar bekleniyor…');
+      const deadline = Date.now() + 75000;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const rr = await fetch(`${base()}/results/${name}.json`);
+        const result = rr.ok ? await rr.json() : null;
+        if (result) {
+          fetch(`${base()}/results/${name}.json`, { method: 'DELETE' }).catch(() => {});
+          toast(result.message || (result.ok ? 'Tamam' : 'Yapılamadı'), result.ok ? 'ok' : 'err');
+          return !!result.ok;
+        }
+      }
+      toast('Bilgisayardan yanıt gelmedi. Bilgisayar ve Chrome açık mı?', 'err');
+      return false;
+    } catch (e) {
+      toast('Komut gönderilemedi: ' + e.message, 'err');
+      return false;
+    } finally {
+      delete pending[type];
+      render();
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Görünümler
+  // ------------------------------------------------------------------
+  function renderFresh() {
+    const dot = $('freshDot'), txt = $('freshText');
+    if (!hb) { dot.className = 'dot stale'; txt.textContent = 'bağlanıyor…'; return; }
+    const ago = Math.max(0, Math.round((Date.now() - hb) / 1000));
+    dot.className = 'dot' + (ago > 120 ? ' dead' : ago > 45 ? ' stale' : '');
+    txt.textContent = (hm(hb) + ' · ' + (ago < 60 ? ago + ' sn önce' : Math.round(ago / 60) + ' dk önce'));
+  }
+
+  function staleBanner() {
+    if (!hb) return '';
+    const ago = (Date.now() - hb) / 1000;
+    if (ago > 120) return `<div class="banner err">Bilgisayara ulaşılamıyor (son bilgi ${Math.round(ago / 60)} dk önce). Bilgisayar uykuda ya da Chrome kapalı olabilir.</div>`;
+    return '';
+  }
+
+  const STATE = {
+    running: { cls: 'running', title: 'Çalışıyor' },
+    break: { cls: 'break', title: 'Molada' },
+    stopped: { cls: 'stopped', title: 'Durdu' }
+  };
+
+  function viewOzet() {
+    if (!live) return '<div class="empty">Veri bekleniyor… Eklentide telefon bağlantısının açık olduğundan emin ol.</div>';
+    const c = live.crm || {}, t = live.today || {};
+    const st = STATE[c.state] || STATE.stopped;
+    const meta = c.state === 'break' ? `Saat başında devam eder` + (live.cleanup ? ` · temizlik ${live.cleanup}` : '')
+      : `Mola ${c.nextBreak || '—'}` + (live.cleanup ? ` · temizlik ${live.cleanup}` : ' · bugün temizlenmedi');
+    const btn = c.state === 'stopped'
+      ? `<button class="pill white go" data-cmd="crm_start" ${pending.crm_start ? 'disabled' : ''}>${pending.crm_start ? 'Gönderiliyor…' : 'Başlat'}</button>`
+      : `<button class="pill white" data-cmd="crm_stop" ${pending.crm_stop ? 'disabled' : ''}>${pending.crm_stop ? 'Gönderiliyor…' : 'Durdur'}</button>`;
+    const rate = t.sms ? Math.round((t.success / t.sms) * 100) : 0;
+
+    const hourly = (live.hourly || []).slice(-8);
+    const max = Math.max(1, ...hourly.map((h) => h.success));
+    const nowH = (t.hourLabel || '').slice(0, 2);
+    const bars = hourly.length
+      ? `<div class="chart">${hourly.map((h) => `<div class="bar ${h.h === nowH ? 'now' : ''}"><b>${h.success}</b><i style="height:${Math.max(4, Math.round((h.success / max) * 80))}px"></i></div>`).join('')}</div>
+         <div class="hours">${hourly.map((h) => `<span>${esc(h.h)}</span>`).join('')}</div>`
+      : '<div class="empty" style="padding:12px">Bugün henüz gönderim yok.</div>';
+
+    const feed = (live.feed || []).slice(0, 3);
+    return `<div class="stack">
+      ${staleBanner()}
+      <div class="state ${st.cls}">
+        <div><div class="kicker" style="color:#fff;opacity:.85">CRM OTOMASYONU</div><div class="title">${st.title}</div><div class="meta">${esc(meta)}</div></div>
+        ${btn}
+      </div>
+      <div class="grid2">
+        <div class="card"><div class="kicker">SMS BUGÜN</div><div class="big">${t.sms || 0}</div><div class="sub">${t.success || 0} teslim · %${rate}</div></div>
+        <div class="card"><div class="kicker">DISCONNECT</div><div class="big" style="color:var(--red)">${t.disconnect || 0}</div><div class="sub">${t.lastDisconnect ? 'son: ' + esc(t.lastDisconnect) : 'bugün yok'}</div></div>
+      </div>
+      <div class="card">
+        <div class="row kicker" style="margin-bottom:8px"><span>SAATLİK BAŞARILI GÖNDERİM</span><span>bu saat ${t.hourSuccess || 0}</span></div>
+        ${bars}
+      </div>
+      <div class="card stack" style="gap:8px">
+        <div class="row kicker"><span>SON OLAYLAR</span><button data-goto="akis" style="border:none;background:none;color:var(--blue);font-weight:700;font-size:12px;padding:0;cursor:pointer">Tümü</button></div>
+        ${feed.length ? feed.map((e) => `<div class="row"><span style="${e.k === 'disc' || e.k === 'fail' ? 'color:var(--red)' : ''}">${esc(e.title)}</span><span class="t">${hm(e.t)}</span></div>`).join('') : '<div class="sub">Henüz olay yok.</div>'}
+        <div class="sub">E-posta bugün: ${t.email || 0} · durma saati ${esc(c.stopTime || '—')}</div>
+      </div>
+    </div>`;
+  }
+
+  const DOT = { ok: '#16a34a', disc: '#b42318', fail: '#d97706', note: '#7c3aed', rem: '#1d4ed8', other: '#98a2b3' };
+  function viewAkis() {
+    if (!live) return '<div class="empty">Veri bekleniyor…</div>';
+    const keep = { all: () => true, ok: (e) => e.k === 'ok', bad: (e) => e.k === 'disc' || e.k === 'fail', note: (e) => e.k === 'note' };
+    const items = (live.feed || []).filter(keep[filter]);
+    const chips = [['all', 'Tümü'], ['ok', 'Teslim'], ['bad', 'Sorunlu'], ['note', 'Notlar']]
+      .map(([id, l]) => `<button class="chip ${filter === id ? 'on' : ''}" data-filter="${id}" aria-pressed="${filter === id}">${l}</button>`).join('');
+    return `<div class="stack">
+      ${staleBanner()}
+      <div class="chips" role="group" aria-label="Filtre">${chips}</div>
+      <div class="list">${items.length ? items.map((e) => `
+        <div class="item"><span class="d" style="background:${DOT[e.k] || DOT.other}"></span>
+          <div class="main"><div class="top"><span class="ttl">${esc(e.title)}</span><span class="sub">${hm(e.t)}</span></div><div class="det">${esc(e.detail)}</div></div>
+        </div>`).join('') : '<div class="empty">Bu filtrede olay yok.</div>'}</div>
+      <div class="note">Son 50 olay tutulur · yeni olaylar en üstte</div>
+    </div>`;
+  }
+
+  function viewRem() {
+    if (!live) return '<div class="empty">Veri bekleniyor…</div>';
+    const r = live.rem || {};
+    const running = r.state === 'running';
+    const date = r.targetDate ? new Date(r.targetDate + 'T12:00:00').toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' }) : 'seçilmedi';
+    const btn = running
+      ? `<button class="pill dark" data-cmd="rem_stop" ${pending.rem_stop ? 'disabled' : ''}>${pending.rem_stop ? 'Gönderiliyor…' : 'Durdur'}</button>`
+      : `<button class="pill blue" data-cmd="rem_start" ${pending.rem_start ? 'disabled' : ''}>${pending.rem_start ? 'Gönderiliyor…' : 'Başlat'}</button>`;
+    const cur = r.current && running ? `<div class="card"><div class="kicker">ŞU AN İŞLENEN</div>
+        <div style="font-size:15px;font-weight:700;margin-top:4px">Reminder #${esc(r.current.id)}</div>
+        <div class="sub" style="font-size:13px">${esc(r.current.stage)}</div><div class="progress"><i></i></div></div>` : '';
+    const recent = (r.recent || []);
+    return `<div class="stack">
+      ${staleBanner()}
+      <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div><div class="kicker">REMINDER OTOMASYONU</div><div style="font-size:24px;font-weight:800;color:${running ? '#1d4ed8' : '#475467'}">${running ? 'Çalışıyor' : 'Durdu'}</div><div class="sub" style="font-size:13px">Yeni tarih: ${esc(date)}</div></div>
+        ${btn}
+      </div>
+      <div class="grid3">
+        <div class="card" style="text-align:center"><div style="font-size:24px;font-weight:800">${r.processed || 0}</div><div class="sub">işlenen</div></div>
+        <div class="card" style="text-align:center"><div style="font-size:24px;font-weight:800">${r.sms || 0}</div><div class="sub">SMS gönderilen</div></div>
+        <div class="card" style="text-align:center"><div style="font-size:24px;font-weight:800">${r.rescheduled || 0}</div><div class="sub">tarihi ertelenen</div></div>
+      </div>
+      ${cur}
+      <div class="card stack" style="gap:8px">
+        <div class="kicker">SON REMINDER İŞLEMLERİ</div>
+        ${recent.length ? recent.map((e) => `<div class="row"><span>${esc(e.title)}${e.detail ? ' · ' + esc(e.detail) : ''}</span><span class="t">${hm(e.t)}</span></div>`).join('') : '<div class="sub">Bugün henüz işlem yok.</div>'}
+      </div>
+      <div class="note">Yeni tarih bilgisayardaki panelden seçilir. Başlatmak için CRM'de reminder sayfasının açık olması gerekir.</div>
+    </div>`;
+  }
+
+  // Ayarlar: [anahtar, tür, başlık, açıklama, ek]
+  const SETTINGS = [
+    ['GENEL', [
+      ['fastModeEnabled', 'bool', 'Hızlı mod', 'Beklemeler kısalır'],
+      ['hourlyBreakMinute', 'int', 'Mola başlangıç dakikası', 'Mola her saat başında (:00) biter', { min: 0, max: 59 }],
+      ['customStopTimeEnabled', 'bool', 'Özel durma saati', 'Kapalıysa 23:50\'de durur'],
+      ['customStopTime', 'time', 'Durma saati', 'New Jersey saati'],
+      ['emailEnabled', 'bool', 'E-posta gönderimi']
+    ]],
+    ['GÖNDERİM', [
+      ['firstThreeNumbersOnlyEnabled', 'bool', 'Sadece ilk N numara'],
+      ['firstNNumbersCount', 'int', 'N (numara sayısı)', '', { min: 1, max: 20 }],
+      ['duplicateNumberProtectionEnabled', 'bool', 'Gün içi mükerrer koruması'],
+      ['allNumbersFailedNoteEnabled', 'bool', '@NumaraBulma notu', 'Hiçbir numaraya gidemezse'],
+      ['deliveryWaitSeconds', 'int', 'Teslim bekleme süresi (sn)', '', { min: 10, max: 180 }],
+      ['disconnectTagFilterEnabled', 'bool', 'Disconnect etiket filtresi'],
+      ['stopKeywordFilterEnabled', 'bool', 'STOP kelime filtresi']
+    ]],
+    ['ÇALDIR-KAPAT', [
+      ['ringHangupEnabled', 'bool', 'Çaldır-kapat'],
+      ['ringSeconds', 'ring', 'Çaldırma süreleri (sn)', 'Rastgele biri seçilir'],
+      ['ringHangupWaitForRecordingEnabled', 'bool', 'Recording göstergesini bekle'],
+      ['ringHangupMaxWaitSeconds', 'int', 'En fazla bekleme (sn)', '', { min: 1, max: 60 }]
+    ]],
+    ['DISCONNECT ALGILAMA', [
+      ['sitMode', 'seg', 'Mod', '', { opts: [['off', 'Kapalı'], ['test', 'Deneme'], ['active', 'Aktif']] }],
+      ['sitMethod', 'seg', 'Yöntem', '', { opts: [['tone', 'Ton'], ['speech', 'Konuşma'], ['both', 'İkisi']] }],
+      ['sitExtraListenSeconds', 'int', 'Ek dinleme süresi (sn)', '', { min: 0, max: 20 }]
+    ]],
+    ['BAKIM VE BİLDİRİM', [
+      ['cloudtalkHourlyRefreshEnabled', 'bool', 'Saat başı CloudTalk yenileme', 'Her saat :59:30'],
+      ['ntfyEnabled', 'bool', 'Telefon bildirimleri (ntfy)']
+    ]]
+  ];
+
+  function changedSettings() {
+    const out = {};
+    if (!draft || !live || !live.settings) return out;
+    for (const k of Object.keys(draft)) if (draft[k] !== live.settings[k]) out[k] = draft[k];
+    return out;
+  }
+
+  function viewSet() {
+    if (!live || !live.settings || !draft) return '<div class="empty">Ayarlar bekleniyor…</div>';
+    const ch = changedSettings();
+    const isCh = (k) => Object.prototype.hasOwnProperty.call(ch, k);
+    const html = SETTINGS.map(([title, rows]) => `<div class="sec-title">${title}</div><div class="set">${rows.map(([k, type, label, hint, ex]) => {
+      const h = hint ? `<div class="h">${esc(hint)}</div>` : '';
+      if (type === 'bool') return `<div class="srow ${isCh(k) ? 'changed' : ''}"><div class="lbl"><div>${esc(label)}</div>${h}</div><button class="switch" role="switch" aria-checked="${!!draft[k]}" aria-label="${esc(label)}" data-bool="${k}"></button></div>`;
+      if (type === 'int') return `<div class="srow ${isCh(k) ? 'changed' : ''}"><div class="lbl"><div>${esc(label)}</div>${h}</div><input class="num" type="number" inputmode="numeric" min="${ex.min}" max="${ex.max}" value="${esc(draft[k])}" data-int="${k}" aria-label="${esc(label)}"></div>`;
+      if (type === 'time') return `<div class="srow ${isCh(k) ? 'changed' : ''}"><div class="lbl"><div>${esc(label)}</div>${h}</div><input class="num time" type="time" value="${esc(draft[k])}" data-time="${k}" aria-label="${esc(label)}"></div>`;
+      if (type === 'ring') {
+        const any = isCh('ringHangupSeconds1') || isCh('ringHangupSeconds2') || isCh('ringHangupSeconds3');
+        return `<div class="srow ${any ? 'changed' : ''}"><div class="lbl"><div>${esc(label)}</div>${h}</div><div class="nums">${[1, 2, 3].map((i) => `<input class="num" type="number" inputmode="numeric" min="1" max="30" value="${esc(draft['ringHangupSeconds' + i])}" data-int="ringHangupSeconds${i}" aria-label="${i}. süre">`).join('')}</div></div>`;
+      }
+      if (type === 'seg') return `<div class="srow stack ${isCh(k) ? 'changed' : ''}"><div class="lbl"><div>${esc(label)}</div>${h}</div><div class="seg" role="group" aria-label="${esc(label)}">${ex.opts.map(([v, l]) => `<button class="${draft[k] === v ? 'on' : ''}" aria-pressed="${draft[k] === v}" data-seg="${k}" data-val="${v}">${l}</button>`).join('')}</div></div>`;
+      return '';
+    }).join('')}</div>`).join('');
+    const n = Object.keys(ch).length;
+    const bar = n ? `<div class="savebar"><span>${n} değişiklik</span><button class="ghost" data-act="discard">Vazgeç</button><button class="primary" data-act="save" ${pending.settings ? 'disabled' : ''}>${pending.settings ? 'Gönderiliyor…' : 'Kaydet'}</button></div>` : '';
+    return `<div>${staleBanner()}${html}
+      <div class="note">Kaydet'e basınca değişiklikler bilgisayardaki eklentiye birkaç saniyede ulaşır. Gönderici numaralar, SMS metni ve fotoğraflar sadece bilgisayardan değiştirilir.</div>
+      <div class="note"><button data-act="unpair" style="border:none;background:none;color:var(--red);font-weight:700;font-size:13px;cursor:pointer;padding:10px">Bu telefonun eşleştirmesini kaldır</button></div>
+      ${bar}</div>`;
+  }
+
+  const TITLES = { ozet: 'Özet', akis: 'Canlı akış', rem: 'Reminder', set: 'Ayarlar' };
+  function render() {
+    // Yazı yazılırken (ayar kutusu odaktayken) ekranı yeniden çizme
+    const active = document.activeElement;
+    if (active && active.matches && active.matches('input.num') && tab === 'set') { renderFresh(); return; }
+    $('title').textContent = TITLES[tab];
+    document.querySelectorAll('nav.tabs button').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'));
+    const views = { ozet: viewOzet, akis: viewAkis, rem: viewRem, set: viewSet };
+    $('main').innerHTML = views[tab]();
+    renderFresh();
+  }
+
+  // ------------------------------------------------------------------
+  // Etkileşim
+  // ------------------------------------------------------------------
+  document.querySelector('nav.tabs').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-tab]');
+    if (!b) return;
+    tab = b.dataset.tab;
+    $('main').scrollTop = 0;
+    render();
+  });
+
+  $('main').addEventListener('click', (e) => {
+    const cmd = e.target.closest('[data-cmd]');
+    if (cmd) {
+      const type = cmd.dataset.cmd;
+      if ((type === 'crm_stop' || type === 'rem_stop') && !confirm('Otomasyon durdurulsun mu?')) return;
+      sendCommand(type);
+      return;
+    }
+    const go = e.target.closest('[data-goto]');
+    if (go) { tab = go.dataset.goto; render(); return; }
+    const f = e.target.closest('[data-filter]');
+    if (f) { filter = f.dataset.filter; render(); return; }
+    const bl = e.target.closest('[data-bool]');
+    if (bl) { draft[bl.dataset.bool] = !draft[bl.dataset.bool]; render(); return; }
+    const sg = e.target.closest('[data-seg]');
+    if (sg) { draft[sg.dataset.seg] = sg.dataset.val; render(); return; }
+    const act = e.target.closest('[data-act]');
+    if (act) {
+      if (act.dataset.act === 'discard') { draft = Object.assign({}, live.settings); render(); }
+      if (act.dataset.act === 'unpair') unpair();
+      if (act.dataset.act === 'save') {
+        const values = changedSettings();
+        sendCommand('settings', { values });
+      }
+    }
+  });
+
+  $('main').addEventListener('change', (e) => {
+    const el = e.target;
+    if (el.dataset.int) {
+      const n = parseInt(el.value, 10);
+      const min = parseInt(el.min, 10), max = parseInt(el.max, 10);
+      if (!Number.isFinite(n) || n < min || n > max) { toast(`${min}–${max} arası bir sayı girin`, 'err'); el.value = draft[el.dataset.int]; return; }
+      draft[el.dataset.int] = n;
+    }
+    if (el.dataset.time) {
+      if (!/^\d{2}:\d{2}$/.test(el.value)) return;
+      draft[el.dataset.time] = el.value;
+    }
+    el.blur();
+    render();
+  });
+
+  // ------------------------------------------------------------------
+  // Başlat
+  // ------------------------------------------------------------------
+  function start(c) {
+    conn = c;
+    $('pairView').classList.add('hidden');
+    $('appView').classList.remove('hidden');
+    render();
+    openStreams();
+    setInterval(() => { renderFresh(); if (tab !== 'set') render(); }, 5000);
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    // Telefon uyanınca bağlantıyı tazele (iOS arka planda akışı kesebiliyor)
+    if (document.visibilityState === 'visible' && conn) openStreams();
+  });
+
+  const c = loadConn();
+  if (c) start(c); else $('pairView').classList.remove('hidden');
+})();
+</script>
+</body>
+</html>
