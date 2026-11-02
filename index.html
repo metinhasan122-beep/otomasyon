@@ -315,6 +315,34 @@
     stopped: { cls: 'stopped', title: 'Durdu' }
   };
 
+  // Liste sırası kartı: "3201 / 11986", ilerleme çubuğu, hız ve tahmini bitiş.
+  function positionCard(c) {
+    const p = c.position;
+    const streak = c.dayRuleStreak || 0;
+    const streakLine = streak >= 5 ? `<div class="sub" style="color:var(--amber);font-weight:700;margin-top:6px">${streak} profil üst üste "temas çok yakın" ile atlandı</div>` : '';
+    if (!p || !p.cur) return streakLine ? `<div class="card">${streakLine}</div>` : '';
+    const fmt = (n) => Number(n).toLocaleString('tr-TR');
+    const pct = p.total ? Math.min(100, Math.round((p.cur / p.total) * 1000) / 10) : null;
+    let eta = '';
+    if (p.total && p.perHour) {
+      const left = Math.max(0, p.total - p.cur);
+      let when = '';
+      if (p.etaMin != null && p.etaMin <= 7 * 24 * 60) {
+        when = new Date(Date.now() + p.etaMin * 60000).toLocaleString('tr-TR', { timeZone: 'America/New_York', weekday: 'short', hour: '2-digit', minute: '2-digit' });
+      }
+      eta = `Kalan ${fmt(left)} · saatte ~${fmt(p.perHour)} profil` + (when ? ` · tahmini bitiş ${when}` : ' · bitiş 1 haftadan uzun');
+    } else if (p.total) {
+      eta = `Kalan ${fmt(Math.max(0, p.total - p.cur))} · hız hesaplanıyor…`;
+    }
+    return `<div class="card">
+        <div class="row kicker"><span>LİSTE SIRASI</span><span>${pct != null ? '%' + String(pct).replace('.', ',') : ''}</span></div>
+        <div style="font-size:24px;font-weight:800;margin-top:2px">${fmt(p.cur)}${p.total ? ` <span style="color:var(--muted);font-weight:700;font-size:18px">/ ${fmt(p.total)}</span>` : ''}</div>
+        ${pct != null ? `<div class="progress"><i style="width:${pct}%;animation:none;opacity:1"></i></div>` : ''}
+        ${eta ? `<div class="sub" style="margin-top:6px">${esc(eta)}</div>` : ''}
+        ${streakLine}
+      </div>`;
+  }
+
   function viewOzet() {
     if (!live) return '<div class="empty">Veri bekleniyor… Eklentide telefon bağlantısının açık olduğundan emin ol.</div>';
     const c = live.crm || {}, t = live.today || {};
@@ -341,6 +369,7 @@
         <div><div class="kicker" style="color:#fff;opacity:.85">CRM OTOMASYONU</div><div class="title">${st.title}</div><div class="meta">${esc(meta)}</div></div>
         ${btn}
       </div>
+      ${positionCard(c)}
       <div class="grid2">
         <div class="card"><div class="kicker">SMS BUGÜN</div><div class="big">${t.sms || 0}</div><div class="sub">${t.success || 0} teslim · %${rate}</div></div>
         <div class="card"><div class="kicker">DISCONNECT</div><div class="big" style="color:var(--red)">${t.disconnect || 0}</div><div class="sub">${t.lastDisconnect ? 'son: ' + esc(t.lastDisconnect) : 'bugün yok'}</div></div>
@@ -417,6 +446,9 @@
       ['emailEnabled', 'bool', 'E-posta gönderimi']
     ]],
     ['GÖNDERİM', [
+      ['lineTypeFilterEnabled', 'bool', 'Cep/Sabit/VoIP seçimi', 'Sabit atlanır, Cep öncelikli'],
+      ['birthYearFilterEnabled', 'bool', 'Doğum yılına göre atla'],
+      ['birthYearLimit', 'int', 'Bu yıldan sonra doğanlar atlanır', 'Örn. 1990 → 1991+ atlanır', { min: 1900, max: 2030 }],
       ['firstThreeNumbersOnlyEnabled', 'bool', 'Sadece ilk N numara'],
       ['firstNNumbersCount', 'int', 'N (numara sayısı)', '', { min: 1, max: 20 }],
       ['duplicateNumberProtectionEnabled', 'bool', 'Gün içi mükerrer koruması'],
@@ -438,7 +470,9 @@
     ]],
     ['BAKIM VE BİLDİRİM', [
       ['cloudtalkHourlyRefreshEnabled', 'bool', 'Saat başı CloudTalk yenileme', 'Her saat :59:30'],
-      ['ntfyEnabled', 'bool', 'Telefon bildirimleri (ntfy)']
+      ['ntfyEnabled', 'bool', 'Telefon bildirimleri (ntfy)'],
+      ['dayRuleStreakNotifyEnabled', 'bool', '"Temas çok yakın" serisini bildir', 'Art arda atlanınca ntfy'],
+      ['dayRuleStreakCount', 'int', 'Kaç profilde bildirilsin', '', { min: 5, max: 200 }]
     ]]
   ];
 
