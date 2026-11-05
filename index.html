@@ -256,9 +256,10 @@
     });
   }
 
-  async function sendCommand(type, extra) {
-    if (pending[type]) return;
-    pending[type] = true;
+  async function sendCommand(type, extra, pendingKey) {
+    const pk = pendingKey || type;
+    if (pending[pk]) return;
+    pending[pk] = true;
     render();
     try {
       const res = await fetch(`${base()}/commands.json`, {
@@ -286,7 +287,7 @@
       toast('Komut gönderilemedi: ' + e.message, 'err');
       return false;
     } finally {
-      delete pending[type];
+      delete pending[pk];
       render();
     }
   }
@@ -315,32 +316,54 @@
     stopped: { cls: 'stopped', title: 'Durdu' }
   };
 
-  // Liste sırası kartı: "3201 / 11986", ilerleme çubuğu, hız ve tahmini bitiş.
-  function positionCard(c) {
-    const p = c.position;
-    const streak = c.dayRuleStreak || 0;
-    const streakLine = streak >= 5 ? `<div class="sub" style="color:var(--amber);font-weight:700;margin-top:6px">${streak} profil üst üste "temas çok yakın" ile atlandı</div>` : '';
-    if (!p || !p.cur) return streakLine ? `<div class="card">${streakLine}</div>` : '';
+  // Liste sırası kartı: "3201 / 11986", ilerleme çubuğu, hız, tahmini bitiş,
+  // durma noktası ve "Sıraya git" düğmesi. which: 'crm' | 'gez'.
+  function positionCard(which, p, stopAt, jumpTo, extraHtml, title) {
     const fmt = (n) => Number(n).toLocaleString('tr-TR');
+    if (!p || !p.cur) return extraHtml ? `<div class="card">${extraHtml}</div>` : '';
     const pct = p.total ? Math.min(100, Math.round((p.cur / p.total) * 1000) / 10) : null;
     let eta = '';
     if (p.total && p.perHour) {
-      const left = Math.max(0, p.total - p.cur);
+      const end = stopAt && stopAt < p.total ? stopAt : p.total;
+      const left = Math.max(0, end - p.cur);
+      const etaMin = Math.round((left / p.perHour) * 60);
       let when = '';
-      if (p.etaMin != null && p.etaMin <= 7 * 24 * 60) {
-        when = new Date(Date.now() + p.etaMin * 60000).toLocaleString('tr-TR', { timeZone: 'America/New_York', weekday: 'short', hour: '2-digit', minute: '2-digit' });
+      if (etaMin <= 7 * 24 * 60) {
+        when = new Date(Date.now() + etaMin * 60000).toLocaleString('tr-TR', { timeZone: 'America/New_York', weekday: 'short', hour: '2-digit', minute: '2-digit' });
       }
       eta = `Kalan ${fmt(left)} · saatte ~${fmt(p.perHour)} profil` + (when ? ` · tahmini bitiş ${when}` : ' · bitiş 1 haftadan uzun');
     } else if (p.total) {
-      eta = `Kalan ${fmt(Math.max(0, p.total - p.cur))} · hız hesaplanıyor…`;
+      eta = `Kalan ${fmt(Math.max(0, (stopAt && stopAt < p.total ? stopAt : p.total) - p.cur))} · hız hesaplanıyor…`;
     }
+    const stopLine = stopAt ? `<div class="sub" style="margin-top:4px">🏁 Durma noktası ${fmt(stopAt)}</div>` : '';
+    const jumpLine = jumpTo ? `<div class="sub" style="margin-top:4px;color:var(--blue);font-weight:700">Mevcut profil bitince ${fmt(jumpTo)}. sıraya gidilecek</div>` : '';
+    const busy = pending['jump_' + which];
     return `<div class="card">
-        <div class="row kicker"><span>LİSTE SIRASI</span><span>${pct != null ? '%' + String(pct).replace('.', ',') : ''}</span></div>
-        <div style="font-size:24px;font-weight:800;margin-top:2px">${fmt(p.cur)}${p.total ? ` <span style="color:var(--muted);font-weight:700;font-size:18px">/ ${fmt(p.total)}</span>` : ''}</div>
+        <div class="row kicker"><span>${esc(title)}</span><span>${pct != null ? '%' + String(pct).replace('.', ',') : ''}</span></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:2px">
+          <div style="font-size:24px;font-weight:800">${fmt(p.cur)}${p.total ? ` <span style="color:var(--muted);font-weight:700;font-size:18px">/ ${fmt(p.total)}</span>` : ''}</div>
+          <button class="chip" data-jump="${which}" ${busy ? 'disabled' : ''}>${busy ? 'Gönderiliyor…' : 'Sıraya git'}</button>
+        </div>
         ${pct != null ? `<div class="progress"><i style="width:${pct}%;animation:none;opacity:1"></i></div>` : ''}
         ${eta ? `<div class="sub" style="margin-top:6px">${esc(eta)}</div>` : ''}
-        ${streakLine}
+        ${stopLine}${jumpLine}${extraHtml || ''}
       </div>`;
+  }
+
+  // Gezinme kartı: durum + Başlat/Durdur + kendi liste sırası
+  function gezinmeCard() {
+    const g = live.gez || {};
+    const running = g.state === 'running';
+    const btn = running
+      ? `<button class="pill dark" data-cmd="gez_stop" ${pending.gez_stop ? 'disabled' : ''}>${pending.gez_stop ? 'Gönderiliyor…' : 'Durdur'}</button>`
+      : `<button class="pill blue" data-cmd="gez_start" ${pending.gez_start ? 'disabled' : ''}>${pending.gez_start ? 'Gönderiliyor…' : 'Başlat'}</button>`;
+    const head = `<div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div><div class="kicker">GEZİNME</div><div style="font-size:20px;font-weight:800;color:${running ? 'var(--green)' : '#475467'}">${running ? 'Çalışıyor' : 'Durdu'}</div>
+        <div class="sub">Sadece sonraki profile geçer${g.stopAt && !(g.position && g.position.cur) ? ' · durma noktası ' + Number(g.stopAt).toLocaleString('tr-TR') : ''}</div></div>
+        ${btn}
+      </div>`;
+    if (!running && !(g.position && g.position.cur)) return head;
+    return head + positionCard('gez', g.position, g.stopAt, g.jumpTo, '', 'GEZİNME SIRASI');
   }
 
   function viewOzet() {
@@ -369,7 +392,8 @@
         <div><div class="kicker" style="color:#fff;opacity:.85">CRM OTOMASYONU</div><div class="title">${st.title}</div><div class="meta">${esc(meta)}</div></div>
         ${btn}
       </div>
-      ${positionCard(c)}
+      ${positionCard('crm', c.position, c.stopAt, c.jumpTo, (c.dayRuleStreak || 0) >= 5 ? `<div class="sub" style="color:var(--amber);font-weight:700;margin-top:6px">${c.dayRuleStreak} profil üst üste "temas çok yakın" ile atlandı</div>` : '', 'LİSTE SIRASI')}
+      ${gezinmeCard()}
       <div class="grid2">
         <div class="card"><div class="kicker">SMS BUGÜN</div><div class="big">${t.sms || 0}</div><div class="sub">${t.success || 0} teslim · %${rate}</div></div>
         <div class="card"><div class="kicker">DISCONNECT</div><div class="big" style="color:var(--red)">${t.disconnect || 0}</div><div class="sub">${t.lastDisconnect ? 'son: ' + esc(t.lastDisconnect) : 'bugün yok'}</div></div>
@@ -438,6 +462,10 @@
 
   // Ayarlar: [anahtar, tür, başlık, açıklama, ek]
   const SETTINGS = [
+    ['DURMA NOKTASI', [
+      ['crmStopAtPosition', 'optint', 'Otomasyon: bu sıradan sonra dur', 'O müşteri işlenir, sonra durur · boş = kapalı', { min: 1, max: 10000000 }],
+      ['gezinmeStopAt', 'optint', 'Gezinme: bu sıraya gelince dur', 'Boş = kapalı', { min: 1, max: 10000000 }]
+    ]],
     ['GENEL', [
       ['fastModeEnabled', 'bool', 'Hızlı mod', 'Beklemeler kısalır'],
       ['hourlyBreakMinute', 'int', 'Mola başlangıç dakikası', 'Mola her saat başında (:00) biter', { min: 0, max: 59 }],
@@ -446,6 +474,8 @@
       ['emailEnabled', 'bool', 'E-posta gönderimi']
     ]],
     ['GÖNDERİM', [
+      ['fallbackNumbersEnabled', 'bool', 'En az bir başarılı text', 'İlk numaralar tutmazsa diğerlerini dener'],
+      ['fallbackNumbersMax', 'int', 'En fazla yedek numara', '', { min: 1, max: 10 }],
       ['lineTypeFilterEnabled', 'bool', 'Cep/Sabit/VoIP seçimi', 'Sabit atlanır, Cep öncelikli'],
       ['birthYearFilterEnabled', 'bool', 'Doğum yılına göre atla'],
       ['birthYearLimit', 'int', 'Bu yıldan sonra doğanlar atlanır', 'Örn. 1990 → 1991+ atlanır', { min: 1900, max: 2030 }],
@@ -490,6 +520,7 @@
     const html = SETTINGS.map(([title, rows]) => `<div class="sec-title">${title}</div><div class="set">${rows.map(([k, type, label, hint, ex]) => {
       const h = hint ? `<div class="h">${esc(hint)}</div>` : '';
       if (type === 'bool') return `<div class="srow ${isCh(k) ? 'changed' : ''}"><div class="lbl"><div>${esc(label)}</div>${h}</div><button class="switch" role="switch" aria-checked="${!!draft[k]}" aria-label="${esc(label)}" data-bool="${k}"></button></div>`;
+      if (type === 'optint') return `<div class="srow ${isCh(k) ? 'changed' : ''}"><div class="lbl"><div>${esc(label)}</div>${h}</div><input class="num" style="width:96px" type="number" inputmode="numeric" min="${ex.min}" max="${ex.max}" placeholder="yok" value="${draft[k] == null ? '' : esc(draft[k])}" data-optint="${k}" aria-label="${esc(label)}"></div>`;
       if (type === 'int') return `<div class="srow ${isCh(k) ? 'changed' : ''}"><div class="lbl"><div>${esc(label)}</div>${h}</div><input class="num" type="number" inputmode="numeric" min="${ex.min}" max="${ex.max}" value="${esc(draft[k])}" data-int="${k}" aria-label="${esc(label)}"></div>`;
       if (type === 'time') return `<div class="srow ${isCh(k) ? 'changed' : ''}"><div class="lbl"><div>${esc(label)}</div>${h}</div><input class="num time" type="time" value="${esc(draft[k])}" data-time="${k}" aria-label="${esc(label)}"></div>`;
       if (type === 'ring') {
@@ -535,7 +566,27 @@
     if (cmd) {
       const type = cmd.dataset.cmd;
       if ((type === 'crm_stop' || type === 'rem_stop') && !confirm('Otomasyon durdurulsun mu?')) return;
+      if (type === 'gez_stop' && !confirm('Gezinme durdurulsun mu?')) return;
       sendCommand(type);
+      return;
+    }
+    const jb = e.target.closest('[data-jump]');
+    if (jb) {
+      const which = jb.dataset.jump;
+      const src = which === 'gez' ? (live.gez || {}) : (live.crm || {});
+      const cur = src.position && src.position.cur;
+      const v = prompt(`${which === 'gez' ? 'Gezinme' : 'Otomasyon'}: hangi sıraya gidilsin?${cur ? ' (şu an ' + cur + ')' : ''}`, '');
+      if (v == null) return;
+      const n = parseInt(String(v).replace(/\D/g, ''), 10);
+      if (!Number.isFinite(n) || n < 1) { toast('Geçerli bir sıra numarası girin', 'err'); return; }
+      const total = src.position && src.position.total;
+      if (total && n > total) { toast(`Liste ${total} müşteri, daha büyük sıra seçilemez`, 'err'); return; }
+      let q = `${cur || '?'} → ${n}`;
+      if (cur && n > cur) q += `, aradaki ${n - cur - 1} müşteri atlanacak`;
+      if (cur && n < cur) q += ' (geri gidilecek)';
+      if (src.stopAt && n > src.stopAt) q += `\nDikkat: durma noktası ${src.stopAt}, bu sıraya gidince hemen durur.`;
+      if (!confirm(q + '\nOnaylıyor musun?')) return;
+      sendCommand('jump', { which, target: n }, 'jump_' + which);
       return;
     }
     const go = e.target.closest('[data-goto]');
@@ -564,6 +615,15 @@
       const min = parseInt(el.min, 10), max = parseInt(el.max, 10);
       if (!Number.isFinite(n) || n < min || n > max) { toast(`${min}–${max} arası bir sayı girin`, 'err'); el.value = draft[el.dataset.int]; return; }
       draft[el.dataset.int] = n;
+    }
+    if (el.dataset.optint) {
+      const v = String(el.value || '').trim();
+      if (!v) draft[el.dataset.optint] = null;
+      else {
+        const n = parseInt(v, 10);
+        if (!Number.isFinite(n) || n < 1) { toast('Geçerli bir sıra numarası girin', 'err'); el.value = draft[el.dataset.optint] == null ? '' : draft[el.dataset.optint]; return; }
+        draft[el.dataset.optint] = n;
+      }
     }
     if (el.dataset.time) {
       if (!/^\d{2}:\d{2}$/.test(el.value)) return;
