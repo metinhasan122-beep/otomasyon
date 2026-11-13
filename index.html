@@ -350,27 +350,15 @@
       </div>`;
   }
 
-  // Gezinme kartı: durum + Başlat/Durdur + kendi liste sırası
-  function gezinmeCard() {
-    const g = live.gez || {};
-    const running = g.state === 'running';
-    const btn = running
-      ? `<button class="pill dark" data-cmd="gez_stop" ${pending.gez_stop ? 'disabled' : ''}>${pending.gez_stop ? 'Gönderiliyor…' : 'Durdur'}</button>`
-      : `<button class="pill blue" data-cmd="gez_start" ${pending.gez_start ? 'disabled' : ''}>${pending.gez_start ? 'Gönderiliyor…' : 'Başlat'}</button>`;
-    const head = `<div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-        <div><div class="kicker">GEZİNME</div><div style="font-size:20px;font-weight:800;color:${running ? 'var(--green)' : '#475467'}">${running ? 'Çalışıyor' : 'Durdu'}</div>
-        <div class="sub">Sadece sonraki profile geçer${g.stopAt && !(g.position && g.position.cur) ? ' · durma noktası ' + Number(g.stopAt).toLocaleString('tr-TR') : ''}</div></div>
-        ${btn}
-      </div>`;
-    if (!running && !(g.position && g.position.cur)) return head;
-    return head + positionCard('gez', g.position, g.stopAt, g.jumpTo, '', 'GEZİNME SIRASI');
-  }
-
   function viewOzet() {
     if (!live) return '<div class="empty">Veri bekleniyor… Eklentide telefon bağlantısının açık olduğundan emin ol.</div>';
     const c = live.crm || {}, t = live.today || {};
-    const st = STATE[c.state] || STATE.stopped;
-    const meta = c.state === 'break' ? `Saat başında devam eder` + (live.cleanup ? ` · temizlik ${live.cleanup}` : '')
+    const WAIT = { crm_login: 'Giriş gerekli: CRM', ct_login: 'Giriş gerekli: CloudTalk', ct_unreachable: 'CloudTalk bekleniyor' };
+    const waiting = c.state === 'running' && c.wait && WAIT[c.wait.reason];
+    const st = waiting ? { cls: 'break', title: WAIT[c.wait.reason] } : (STATE[c.state] || STATE.stopped);
+    const waitMin = waiting ? Math.max(0, Math.round((Date.now() - (c.wait.since || Date.now())) / 60000)) : 0;
+    const meta = waiting ? (c.wait.reason === 'ct_unreachable' ? `${waitMin} dk · müşteri atlanmadan bekleniyor` : `${waitMin} dk · bilgisayardan giriş yapınca kendiliğinden devam eder`)
+      : c.state === 'break' ? `Saat başında devam eder` + (live.cleanup ? ` · temizlik ${live.cleanup}` : '')
       : `Mola ${c.nextBreak || '—'}` + (live.cleanup ? ` · temizlik ${live.cleanup}` : ' · bugün temizlenmedi');
     const btn = c.state === 'stopped'
       ? `<button class="pill white go" data-cmd="crm_start" ${pending.crm_start ? 'disabled' : ''}>${pending.crm_start ? 'Gönderiliyor…' : 'Başlat'}</button>`
@@ -386,6 +374,15 @@
       : '<div class="empty" style="padding:12px">Bugün henüz gönderim yok.</div>';
 
     const feed = (live.feed || []).slice(0, 3);
+    const iss = live.issues || { count: 0, recoveries: 0, last: null };
+    const issCard = `<div class="card">
+        <div class="row kicker"><span>SORUNLAR (BUGÜN)</span><button data-goto-sys="1" style="border:none;background:none;color:var(--blue);font-weight:700;font-size:12px;padding:0;cursor:pointer">Sistem akışı</button></div>
+        <div style="display:flex;align-items:baseline;gap:10px;margin-top:2px">
+          <div class="big" style="color:${iss.count ? 'var(--red)' : 'var(--green)'}">${iss.count || 0}</div>
+          <div class="sub">${iss.count ? 'uyarı' : 'sorun yok'}${iss.recoveries ? ` · ${iss.recoveries} otomatik kurtarma` : ''}</div>
+        </div>
+        ${iss.last ? `<div class="sub" style="margin-top:4px">Son: ${esc(iss.last.title)} · ${hm(iss.last.t)}</div>` : ''}
+      </div>`;
     return `<div class="stack">
       ${staleBanner()}
       <div class="state ${st.cls}">
@@ -393,7 +390,7 @@
         ${btn}
       </div>
       ${positionCard('crm', c.position, c.stopAt, c.jumpTo, (c.dayRuleStreak || 0) >= 5 ? `<div class="sub" style="color:var(--amber);font-weight:700;margin-top:6px">${c.dayRuleStreak} profil üst üste "temas çok yakın" ile atlandı</div>` : '', 'LİSTE SIRASI')}
-      ${gezinmeCard()}
+      ${issCard}
       <div class="grid2">
         <div class="card"><div class="kicker">SMS BUGÜN</div><div class="big">${t.sms || 0}</div><div class="sub">${t.success || 0} teslim · %${rate}</div></div>
         <div class="card"><div class="kicker">DISCONNECT</div><div class="big" style="color:var(--red)">${t.disconnect || 0}</div><div class="sub">${t.lastDisconnect ? 'son: ' + esc(t.lastDisconnect) : 'bugün yok'}</div></div>
@@ -404,18 +401,18 @@
       </div>
       <div class="card stack" style="gap:8px">
         <div class="row kicker"><span>SON OLAYLAR</span><button data-goto="akis" style="border:none;background:none;color:var(--blue);font-weight:700;font-size:12px;padding:0;cursor:pointer">Tümü</button></div>
-        ${feed.length ? feed.map((e) => `<div class="row"><span style="${e.k === 'disc' || e.k === 'fail' ? 'color:var(--red)' : ''}">${esc(e.title)}</span><span class="t">${hm(e.t)}</span></div>`).join('') : '<div class="sub">Henüz olay yok.</div>'}
+        ${feed.length ? feed.map((e) => `<div class="row"><span style="${e.k === 'disc' || e.k === 'fail' ? 'color:var(--red)' : e.k === 'sys' ? 'color:var(--amber)' : ''}">${esc(e.title)}</span><span class="t">${hm(e.t)}</span></div>`).join('') : '<div class="sub">Henüz olay yok.</div>'}
         <div class="sub">E-posta bugün: ${t.email || 0} · durma saati ${esc(c.stopTime || '—')}</div>
       </div>
     </div>`;
   }
 
-  const DOT = { ok: '#16a34a', disc: '#b42318', fail: '#d97706', note: '#7c3aed', rem: '#1d4ed8', other: '#98a2b3' };
+  const DOT = { ok: '#16a34a', disc: '#b42318', fail: '#d97706', note: '#7c3aed', rem: '#1d4ed8', sys: '#0e7490', other: '#98a2b3' };
   function viewAkis() {
     if (!live) return '<div class="empty">Veri bekleniyor…</div>';
-    const keep = { all: () => true, ok: (e) => e.k === 'ok', bad: (e) => e.k === 'disc' || e.k === 'fail', note: (e) => e.k === 'note' };
+    const keep = { all: () => true, ok: (e) => e.k === 'ok', bad: (e) => e.k === 'disc' || e.k === 'fail', note: (e) => e.k === 'note', sys: (e) => e.k === 'sys' };
     const items = (live.feed || []).filter(keep[filter]);
-    const chips = [['all', 'Tümü'], ['ok', 'Teslim'], ['bad', 'Sorunlu'], ['note', 'Notlar']]
+    const chips = [['all', 'Tümü'], ['ok', 'Teslim'], ['bad', 'Sorunlu'], ['note', 'Notlar'], ['sys', 'Sistem']]
       .map(([id, l]) => `<button class="chip ${filter === id ? 'on' : ''}" data-filter="${id}" aria-pressed="${filter === id}">${l}</button>`).join('');
     return `<div class="stack">
       ${staleBanner()}
@@ -463,8 +460,7 @@
   // Ayarlar: [anahtar, tür, başlık, açıklama, ek]
   const SETTINGS = [
     ['DURMA NOKTASI', [
-      ['crmStopAtPosition', 'optint', 'Otomasyon: bu sıradan sonra dur', 'O müşteri işlenir, sonra durur · boş = kapalı', { min: 1, max: 10000000 }],
-      ['gezinmeStopAt', 'optint', 'Gezinme: bu sıraya gelince dur', 'Boş = kapalı', { min: 1, max: 10000000 }]
+      ['crmStopAtPosition', 'optint', 'Otomasyon: bu sıradan sonra dur', 'O müşteri işlenir, sonra durur · liste değişirse iptal olur', { min: 1, max: 10000000 }]
     ]],
     ['GENEL', [
       ['fastModeEnabled', 'bool', 'Hızlı mod', 'Beklemeler kısalır'],
@@ -495,11 +491,12 @@
     ]],
     ['DISCONNECT ALGILAMA', [
       ['sitMode', 'seg', 'Mod', '', { opts: [['off', 'Kapalı'], ['test', 'Deneme'], ['active', 'Aktif']] }],
-      ['sitMethod', 'seg', 'Yöntem', '', { opts: [['tone', 'Ton'], ['speech', 'Konuşma'], ['both', 'İkisi']] }],
+      ['sitMethod', 'seg', 'Yöntem', 'İkisi önerilir · sadece ton ulaşılamıyor anonslarını ayıramaz', { opts: [['tone', 'Ton'], ['speech', 'Konuşma'], ['both', 'İkisi']] }],
       ['sitExtraListenSeconds', 'int', 'Ek dinleme süresi (sn)', '', { min: 0, max: 20 }]
     ]],
     ['BAKIM VE BİLDİRİM', [
       ['cloudtalkHourlyRefreshEnabled', 'bool', 'Saat başı CloudTalk yenileme', 'Her saat :59:30'],
+      ['resumeAfterRestartEnabled', 'bool', 'Chrome yeniden başlarsa devam et', '30 dk içinde açılırsa kaldığı yerden'],
       ['ntfyEnabled', 'bool', 'Telefon bildirimleri (ntfy)'],
       ['dayRuleStreakNotifyEnabled', 'bool', '"Temas çok yakın" serisini bildir', 'Art arda atlanınca ntfy'],
       ['dayRuleStreakCount', 'int', 'Kaç profilde bildirilsin', '', { min: 5, max: 200 }]
@@ -566,7 +563,6 @@
     if (cmd) {
       const type = cmd.dataset.cmd;
       if ((type === 'crm_stop' || type === 'rem_stop') && !confirm('Otomasyon durdurulsun mu?')) return;
-      if (type === 'gez_stop' && !confirm('Gezinme durdurulsun mu?')) return;
       sendCommand(type);
       return;
     }
@@ -589,6 +585,8 @@
       sendCommand('jump', { which, target: n }, 'jump_' + which);
       return;
     }
+    const gs = e.target.closest('[data-goto-sys]');
+    if (gs) { tab = 'akis'; filter = 'sys'; render(); return; }
     const go = e.target.closest('[data-goto]');
     if (go) { tab = go.dataset.goto; render(); return; }
     const f = e.target.closest('[data-filter]');
