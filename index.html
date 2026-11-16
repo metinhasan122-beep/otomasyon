@@ -374,6 +374,27 @@
       : '<div class="empty" style="padding:12px">Bugün henüz gönderim yok.</div>';
 
     const feed = (live.feed || []).slice(0, 3);
+    const ca = live.cta || {};
+    const ctBusy = pending.ct_refresh || ca.state === 'reading';
+    const talkTr = (sec) => {
+      if (sec == null) return '—';
+      const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), x = sec % 60;
+      return h ? `${h}s ${String(m).padStart(2, '0')}dk` : m ? `${m}dk ${String(x).padStart(2, '0')}sn` : `${x}sn`;
+    };
+    const ctStale = ca.t && Date.now() - ca.t > 15 * 60000;
+    const ctSub = ctBusy ? 'Bilgisayar CloudTalk\'ı okuyor…'
+      : ca.state === 'error' ? `<span style="color:var(--red)">Okunamadı: ${esc(ca.err || '')}</span>`
+      : ca.t ? `son güncelleme ${hm(ca.t)}${ctStale ? ' · güncel değil' : ''}` : 'Bugün henüz okunmadı';
+    const ctCard = `<div class="card">
+        <div class="row kicker"><span>CLOUDTALK (BUGÜN)</span>
+          <button data-cmd="ct_refresh" ${ctBusy ? 'disabled' : ''} style="border:none;background:none;color:var(--blue);font-weight:700;font-size:12px;padding:0;cursor:pointer">${ctBusy ? 'Güncelleniyor…' : '🔄 Güncelle'}</button></div>
+        <div style="display:flex;gap:18px;margin-top:4px;${ctStale || ca.state === 'error' ? 'opacity:.5' : ''}">
+          <div><div class="big">${talkTr(ca.talkSec)}</div><div class="sub">konuşma</div></div>
+          <div><div class="big">${ca.sms == null ? '—' : ca.sms}</div><div class="sub">SMS</div></div>
+          <div><div class="big">${ca.calls == null ? '—' : ca.calls}</div><div class="sub">arama</div></div>
+        </div>
+        <div class="sub" style="margin-top:4px">${ctSub}</div>
+      </div>`;
     const iss = live.issues || { count: 0, recoveries: 0, last: null };
     const issCard = `<div class="card">
         <div class="row kicker"><span>SORUNLAR (BUGÜN)</span><button data-goto-sys="1" style="border:none;background:none;color:var(--blue);font-weight:700;font-size:12px;padding:0;cursor:pointer">Sistem akışı</button></div>
@@ -391,6 +412,7 @@
       </div>
       ${positionCard('crm', c.position, c.stopAt, c.jumpTo, (c.dayRuleStreak || 0) >= 5 ? `<div class="sub" style="color:var(--amber);font-weight:700;margin-top:6px">${c.dayRuleStreak} profil üst üste "temas çok yakın" ile atlandı</div>` : '', 'LİSTE SIRASI')}
       ${issCard}
+      ${ctCard}
       <div class="grid2">
         <div class="card"><div class="kicker">SMS BUGÜN</div><div class="big">${t.sms || 0}</div><div class="sub">${t.success || 0} teslim · %${rate}</div></div>
         <div class="card"><div class="kicker">DISCONNECT</div><div class="big" style="color:var(--red)">${t.disconnect || 0}</div><div class="sub">${t.lastDisconnect ? 'son: ' + esc(t.lastDisconnect) : 'bugün yok'}</div></div>
