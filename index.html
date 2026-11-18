@@ -395,6 +395,34 @@
         </div>
         <div class="sub" style="margin-top:4px">${ctSub}</div>
       </div>`;
+    const nt = live.net || { state: 'unknown' };
+    const sp = live.speed || {};
+    const NETC = { good: 'var(--green)', slow: 'var(--amber)', bad: 'var(--amber)', down: 'var(--red)', unknown: '#98a2b3' };
+    const NETL = { good: 'İyi', slow: 'Dalgalı', bad: 'Sorunlu', down: 'İnternet yok', unknown: 'Bilgi yok' };
+    const spBusy = pending.speed_test || sp.state === 'running' || sp.state === 'waiting';
+    const sparkMax = Math.max(150, ...((nt.spark || []).filter((x) => x != null)));
+    const spark = (nt.spark || []).map((x) => x == null
+      ? '<span style="width:4px;height:18px;background:var(--red);opacity:.35;border-radius:1px"></span>'
+      : `<span style="width:4px;height:${Math.max(3, Math.round(18 * x / sparkMax))}px;background:#98a2b3;border-radius:1px"></span>`).join('');
+    const spSub = spBusy ? (sp.state === 'waiting' ? 'Arama bitince test başlayacak…' : 'Hız testi yapılıyor…')
+      : sp.state === 'error' ? `<span style="color:var(--red)">Yapılamadı: ${esc(sp.err || '')}</span>`
+      : sp.t ? `son test ${hm(sp.t)}` : 'Henüz hız testi yapılmadı (≈10–30 MB)';
+    const netCard = `<div class="card">
+        <div class="row kicker"><span>BİLGİSAYARIN İNTERNETİ</span>
+          <button data-cmd="speed_test" ${spBusy ? 'disabled' : ''} style="border:none;background:none;color:var(--blue);font-weight:700;font-size:12px;padding:0;cursor:pointer">${spBusy ? 'Ölçülüyor…' : '⚡ Hız testi'}</button></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+          <span style="width:10px;height:10px;border-radius:50%;background:${NETC[nt.state] || NETC.unknown}"></span>
+          <b>${NETL[nt.state] || NETL.unknown}</b>
+          <span class="sub">${nt.ping != null ? `ping ${nt.ping} ms · ` : ''}bugün ${nt.drops || 0} kopma</span>
+          <span style="display:inline-flex;align-items:flex-end;gap:2px;height:18px;margin-left:auto">${spark}</span>
+        </div>
+        <div style="display:flex;gap:18px;margin-top:8px">
+          <div><div class="big">${sp.down == null ? '—' : sp.down}</div><div class="sub">↓ Mbps</div></div>
+          <div><div class="big">${sp.up == null ? '—' : sp.up}</div><div class="sub">↑ Mbps</div></div>
+          <div><div class="big">${sp.ping == null ? '—' : sp.ping}</div><div class="sub">ping ms</div></div>
+        </div>
+        <div class="sub" style="margin-top:4px">${spSub}</div>
+      </div>`;
     const iss = live.issues || { count: 0, recoveries: 0, last: null };
     const issCard = `<div class="card">
         <div class="row kicker"><span>SORUNLAR (BUGÜN)</span><button data-goto-sys="1" style="border:none;background:none;color:var(--blue);font-weight:700;font-size:12px;padding:0;cursor:pointer">Sistem akışı</button></div>
@@ -413,6 +441,7 @@
       ${positionCard('crm', c.position, c.stopAt, c.jumpTo, (c.dayRuleStreak || 0) >= 5 ? `<div class="sub" style="color:var(--amber);font-weight:700;margin-top:6px">${c.dayRuleStreak} profil üst üste "temas çok yakın" ile atlandı</div>` : '', 'LİSTE SIRASI')}
       ${issCard}
       ${ctCard}
+      ${netCard}
       <div class="grid2">
         <div class="card"><div class="kicker">SMS BUGÜN</div><div class="big">${t.sms || 0}</div><div class="sub">${t.success || 0} teslim · %${rate}</div></div>
         <div class="card"><div class="kicker">DISCONNECT</div><div class="big" style="color:var(--red)">${t.disconnect || 0}</div><div class="sub">${t.lastDisconnect ? 'son: ' + esc(t.lastDisconnect) : 'bugün yok'}</div></div>
