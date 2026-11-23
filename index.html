@@ -523,6 +523,7 @@
     ['GÖNDERİM', [
       ['fallbackNumbersEnabled', 'bool', 'En az bir başarılı text', 'İlk numaralar tutmazsa diğerlerini dener'],
       ['fallbackNumbersMax', 'int', 'En fazla yedek numara', '', { min: 1, max: 10 }],
+      ['replyPriorityEnabled', 'bool', 'Cevap veren numaraya öncelik', 'ctb/htb/wtb notu varsa yalnızca o numara'],
       ['lineTypeFilterEnabled', 'bool', 'Cep/Sabit/VoIP seçimi', 'Sabit atlanır, Cep öncelikli'],
       ['birthYearFilterEnabled', 'bool', 'Doğum yılına göre atla'],
       ['birthYearLimit', 'int', 'Bu yıldan sonra doğanlar atlanır', 'Örn. 1990 → 1991+ atlanır', { min: 1900, max: 2030 }],
@@ -535,7 +536,8 @@
       ['stopKeywordFilterEnabled', 'bool', 'STOP kelime filtresi']
     ]],
     ['ÇALDIR-KAPAT', [
-      ['ringHangupEnabled', 'bool', 'Çaldır-kapat'],
+      ['ringHangupEnabled', 'bool', 'Çaldır-kapat (CRM)'],
+      ['reminderRingHangupEnabled', 'bool', 'Çaldır-kapat (Reminder)'],
       ['ringSeconds', 'ring', 'Çaldırma süreleri (sn)', 'Rastgele biri seçilir'],
       ['ringHangupWaitForRecordingEnabled', 'bool', 'Recording göstergesini bekle'],
       ['ringHangupMaxWaitSeconds', 'int', 'En fazla bekleme (sn)', '', { min: 1, max: 60 }]
